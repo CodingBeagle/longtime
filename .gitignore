@@ -1,3 +1,9 @@
+# Exclude .vs folder
+.vs/
+
+# Cmake output folder
+out/
+
 # Prerequisites
 *.d
 
