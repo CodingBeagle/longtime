@@ -1,3 +1,6 @@
+# Exlude clion folder
+.idea/
+
 # Exclude .vs folder
 .vs/
 

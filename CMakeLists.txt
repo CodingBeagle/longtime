@@ -20,7 +20,7 @@ add_subdirectory(vendored/SDL EXCLUDE_FROM_ALL)
 # Replace "src" with your source directory and list your source files  
 set(SOURCES
  src/main.cpp
-)  
+)
 
 # Add the executable  
 add_executable(${PROJECT_NAME} ${SOURCES})  

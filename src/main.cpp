@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <vector>
 
 // Add GLAD for OpenGL function loading
 // I am using the header-only version, for that to work you need to define GLAD_GL_IMPLEMENTATION in a single source file.
@@ -20,6 +21,13 @@ const char* vertexShaderSource = "#version 330 core\n"
     "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
 	"}\0";
 
+const char* fragmentShaderSource = "#version 330 core\n"
+	"out vec4 FragColor;\n"
+	"void main()\n"
+	"{\n"
+	"   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+	"}\0";
+
 float vertices[] = {
 	-0.5f, -0.5f, 0.0f,
 	 0.5f, -0.5f, 0.0f,
@@ -29,6 +37,54 @@ float vertices[] = {
 // Function Prototypes
 void PanicTerminate(std::string message);
 void SdlCleanup();
+
+unsigned int createAndCompileShader(GLenum shaderType, const char* shaderSource) {
+	// Create and compile shader
+	unsigned int shader = glCreateShader(shaderType);
+	glShaderSource(shader, 1, &shaderSource, nullptr);
+	glCompileShader(shader);
+
+	// Check for compilation errors
+	int success;
+	char infoLog[512];
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+	if (!success) {
+		// The returned info log is null-terminated so long as the buffer is large enough
+		glGetShaderInfoLog(shader, 512, nullptr, infoLog);
+		PanicTerminate("Shader Compilation Error: " + std::string(infoLog));
+	}
+
+	return shader;
+}
+
+unsigned int createShaderProgram(const std::vector<unsigned int>& shaders) {
+	// Create a shader program
+	unsigned int shaderProgram = glCreateProgram();
+
+	// Attach all shaders to the program
+	for (const auto& shader : shaders) {
+		glAttachShader(shaderProgram, shader);
+	}
+
+	// Link the program
+	glLinkProgram(shaderProgram);
+
+	// Check for linking errors
+	int success;
+	char infoLog[512];
+	glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+	if (!success) {
+		glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
+		PanicTerminate("Shader Program Linking Error: " + std::string(infoLog));
+	}
+
+	// Detach and delete shaders after linking, as they will no longer be required
+	for (const auto& shader : shaders) {
+		glDetachShader(shaderProgram, shader);
+	}
+
+	return shaderProgram;
+}
 
 int main(int argc, char* argv[])
 {
@@ -69,6 +125,18 @@ int main(int argc, char* argv[])
 	// Set OpenGL viewport dimensions
 	glViewport(0, 0, 800, 600);
 
+	// Create a Vertex Array Object (VAO)
+	// A VAO is an object that stores:
+	// - Calls to glEnableVertexAttribArray (or glDisableVertexAttribArray)
+	// - Calls to glVertexAttribPointer
+	// - VBOs associated with vertex attributes by calls to gLVertexAttribPointer
+	// A VAO makes it easier to switch between different vertex attribute configurations
+	unsigned int VAO{};
+	glGenVertexArrays(1, &VAO);
+
+	// After binding our VAO, we can "record" all necessary calls to set up the vertex attributes
+	glBindVertexArray(VAO);
+
 	// Generate vertex buffer object used to store vertex attributes on the GPU
 	unsigned int VBO{};
 	glGenBuffers(1, &VBO);
@@ -81,20 +149,37 @@ int main(int argc, char* argv[])
 	// Copy the vertex data to the buffer's memory.
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	// Set up vertex shader
-	unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
-	glCompileShader(vertexShader);
+	// We describe the output of our data for location 0 in the vertex shader.
+	// Each component has 3 elements of type FLOAT.
+	// The data is tightly packed, and there's 4 bytes times 3 for each component (3 floats).
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
-	// Check for compilation errors
-	int success;
-	char infoLog[512];
-	glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-	if (!success) {
-		// The returned info log is null-terminated so long as the buffer is large enough
-		glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
-		PanicTerminate("Vertex Shader Compilation Error: " + std::string(infoLog));
-	}
+	// Vertex attributes are disabled by default and has to be enabled.
+	glEnableVertexAttribArray(0);
+
+	// Create vertex shader
+	unsigned int vertexShader = createAndCompileShader(GL_VERTEX_SHADER, vertexShaderSource);
+
+	// Create fragment shader
+	unsigned int fragmentShader = createAndCompileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
+
+	// Create shader program
+	unsigned int shaderProgram = createShaderProgram({ vertexShader, fragmentShader });
+
+	glUseProgram(shaderProgram);
+
+	// Unbind the VAO
+	// We can now use it later for drawing calls
+	glBindVertexArray(0);
+
+	// Shader cleanup
+	// After creating and linking the shader program, the shaders are not needed any longer
+	// Best practice is to clean up after yourself ;)
+	glDeleteShader(vertexShader);
+	glDeleteShader(fragmentShader);
+
+	// Unbind the shader program until we want to use it
+	glUseProgram(0);
 
 	// Main loop
 	bool running = true;
@@ -121,6 +206,10 @@ int main(int argc, char* argv[])
 		// Clear the screen
 		glClearColor(0.0f, 0.392f, 0.584f, 0.929f);
 		glClear(GL_COLOR_BUFFER_BIT);
+
+		glUseProgram(shaderProgram);
+		glBindVertexArray(VAO);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		// Swap the buffers
 		SDL_GL_SwapWindow(mainWindow);
