@@ -125,6 +125,24 @@ int main(int argc, char* argv[])
 	// Set OpenGL viewport dimensions
 	glViewport(0, 0, 800, 600);
 
+	// Enable OpenGL debug output
+	glEnable(GL_DEBUG_OUTPUT);
+	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+
+	// Debug callback function
+	glDebugMessageCallback(
+		[](GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
+			std::cout << "[OpenGL Debug] "
+					  << "Source: " << source << ", Type: " << type
+					  << ", ID: " << id << ", Severity: " << severity
+					  << "\nMessage: " << message << std::endl;
+		},
+		nullptr
+	);
+
+	// Optionally, filter messages by severity
+	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+
 	// Create a Vertex Array Object (VAO)
 	// A VAO is an object that stores:
 	// - Calls to glEnableVertexAttribArray (or glDisableVertexAttribArray)
